@@ -3,11 +3,12 @@ import json
 import os
 import uuid
 import cv2
-import random
-phone = 0
+import random 
 global machineID
 from aiogram import Bot, Dispatcher, executor, types
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton, InputFile
+
+import profile
 
 bot = Bot(token='5893920925:AAHCU_FZNN5S7BwtPMVExy9bAE6Qr5ej0uQ')
 dp = Dispatcher(bot)
@@ -37,13 +38,6 @@ async def send_welcome(message: types.Message):
 async def echo(message: types.Message):
     if message.text.lower() == 'привет':
         await message.answer('Привееет ✌️')
-    elif (message.text[0] == '7' or message.text[0] == '8') and len(message.text) == 11:
-        global phone
-        phone = message.text
-        requests.get(f'http://127.0.0.1:5000/api?target=reg&id={message.text}&username={message.from_user.username}')
-        await message.answer('Спасибо! Вы успешно зарегистировались в программе! 🍃', reply_markup=menu_btns)
-    else:
-        await message.answer('Я не понял, попробуй еще раз! Напиши /start, чтобы начать сначала.')
 
 @dp.callback_query_handler(lambda c: c.data == 'menu')
 async def process_callback_menu(callback_query: types.CallbackQuery):
@@ -64,22 +58,26 @@ async def process_callback_menu(callback_query: types.CallbackQuery):
 @dp.callback_query_handler(lambda c: c.data == 'profile')
 async def process_callback_menu(callback_query: types.CallbackQuery):
 
-    data = requests.get(f'http://127.0.0.1:5000/api?target=account&id={phone}')
+    data = requests.get(f'http://127.0.0.1:5000/api?target=account&id={callback_query.from_user.id}')
     user = json.loads(data.text)[0]
     username = user[0]
     coins = user[1]
     garbage = user[2]
 
-    goods = requests.get(f'http://127.0.0.1:5000/api?target=goods&id={phone}')
+    goods = requests.get(f'http://127.0.0.1:5000/api?target=goods&id={callback_query.from_user.id}')
     goods = json.loads(goods.text)[0]
     user_goods = []
 
     for good in goods:
-        if int(good) != int(phone):
+        if int(good) != int(callback_query.from_user.id):
             user_goods.append(good)
 
     await bot.answer_callback_query(callback_query.id)
     await bot.send_message(callback_query.from_user.id, f'👀 Ваш профиль: \n Имя: {username} \n ЭкоКоинов: {coins} \n Сдано мусора: {garbage} \n Ваши товары: \n {user_goods[0]} плюшевых медведей \n {user_goods[1]} пачек бумаги \n {user_goods[2]} худи \n {user_goods[3]} крутых кепок', reply_markup=menu_btns)
+
+# @dp.callback_query_handler(lambda c: c.data == 'profile')
+# async def go_pr(cq):
+#     await profile.process_callback_profile(cq, callback_query.from_user.id)
 
 @dp.callback_query_handler(lambda c: c.data == 'reg')
 async def process_callback_menu(callback_query: types.CallbackQuery):
@@ -155,28 +153,28 @@ async def process_callback_menu(callback_query: types.CallbackQuery):
     await bot.answer_callback_query(callback_query.id)
 
     if good == 'Bear':
-        res = requests.get(f'http://127.0.0.1:5000/api?target=buy&good={good.lower()}&id={phone}&cost={goods[good]}')
+        res = requests.get(f'http://127.0.0.1:5000/api?target=buy&good={good.lower()}&id={callback_query.from_user.id}&cost={goods[good]}')
         if res.text == 'ok':
             await bot.send_message(callback_query.from_user.id, 'Вы успешно купили медвежонка, спасибо ❤️', reply_markup=menu_btns)
         else:
             await bot.send_message(callback_query.from_user.id, 'У вас недостаточно средств 😥', reply_markup=menu_btns)
 
     elif good == 'Paper':
-        res = requests.get(f'http://127.0.0.1:5000/api?target=buy&good={good.lower()}&id={phone}&cost={goods[good]}')
+        res = requests.get(f'http://127.0.0.1:5000/api?target=buy&good={good.lower()}&id={callback_query.from_user.id}&cost={goods[good]}')
         if res.text == 'ok':
             await bot.send_message(callback_query.from_user.id, 'Вы успешно купили бумагу, спасибо ❤️', reply_markup=menu_btns)
         else:
             await bot.send_message(callback_query.from_user.id, 'У вас недостаточно средств 😥', reply_markup=menu_btns)
 
     elif good == 'Hoodie':
-        res = requests.get(f'http://127.0.0.1:5000/api?target=buy&good={good.lower()}&id={phone}&cost={goods[good]}')
+        res = requests.get(f'http://127.0.0.1:5000/api?target=buy&good={good.lower()}&id={callback_query.from_user.id}&cost={goods[good]}')
         if res.text == 'ok':
             await bot.send_message(callback_query.from_user.id, 'Вы успешно купили худи, спасибо ❤️', reply_markup=menu_btns)
         else:
             await bot.send_message(callback_query.from_user.id, 'У вас недостаточно средств 😥', reply_markup=menu_btns)
 
     elif good == 'Cap':
-        res = requests.get(f'http://127.0.0.1:5000/api?target=buy&good={good.lower()}&id={phone}&cost={goods[good]}')
+        res = requests.get(f'http://127.0.0.1:5000/api?target=buy&good={good.lower()}&id={callback_query.from_user.id}&cost={goods[good]}')
         if res.text == 'ok':
             await bot.send_message(callback_query.from_user.id, 'Вы успешно купили кепку, спасибо ❤️', reply_markup=menu_btns)
         else:
@@ -232,7 +230,7 @@ async def process_callback_menu(callback_query: types.CallbackQuery):
 
     putted_trash = callback_query.data.replace('put_', '')
     mass = random.randint(1, 10)
-    requests.get(f'http://127.0.0.1:5000/api?trash={putted_trash}&mass={mass}&mach_id={machineID}&id={phone}')
+    requests.get(f'http://127.0.0.1:5000/api?trash={putted_trash}&mass={mass}&mach_id={machineID}&id={callback_query.from_user.id}')
 
     await bot.answer_callback_query(callback_query.id)
 
