@@ -242,3 +242,4 @@ async def process_callback_menu(callback_query: types.CallbackQuery):
         await bot.send_message(callback_query.from_user.id, f'Спасибо за помощь природе! ❤️ Вы успешно сдали {mass} кг пластика', reply_markup=menu_btns)
 
 executor.start_polling(dp, skip_updates=True)
+# 
