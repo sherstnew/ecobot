@@ -7,6 +7,7 @@ import random
 global machineID
 from aiogram import Bot, Dispatcher, executor, types
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton, InputFile
+import sqlite3
 
 import profile
 
@@ -23,6 +24,9 @@ goods = {
     "Hoodie": "1000",
     "Cap": "700",
 }
+
+connection = sqlite3.connect('ecobot.db')
+cursor = connection.cursor()
 
 @dp.message_handler(commands=['start'])
 async def send_welcome(message: types.Message):
@@ -58,14 +62,12 @@ async def process_callback_menu(callback_query: types.CallbackQuery):
 @dp.callback_query_handler(lambda c: c.data == 'profile')
 async def process_callback_menu(callback_query: types.CallbackQuery):
 
-    data = requests.get(f'http://127.0.0.1:5000/api?target=account&id={callback_query.from_user.id}')
-    user = json.loads(data.text)[0]
+    user = cursor.execute('SELECT name, coins, trash_count FROM users WHERE id = "{0}"'.format(callback_query.from_user.id)).fetchall()[0]
     username = user[0]
     coins = user[1]
     garbage = user[2]
 
-    goods = requests.get(f'http://127.0.0.1:5000/api?target=goods&id={callback_query.from_user.id}')
-    goods = json.loads(goods.text)[0]
+    goods = cursor.execute('SELECT * FROM users_goods WHERE id = "{0}"'.format(callback_query.from_user.id)).fetchall()[0]
     user_goods = []
 
     for good in goods:
@@ -82,8 +84,12 @@ async def process_callback_menu(callback_query: types.CallbackQuery):
 @dp.callback_query_handler(lambda c: c.data == 'reg')
 async def process_callback_menu(callback_query: types.CallbackQuery):
 
+    cursor.execute('INSERT INTO users (id, name, coins, trash_count) VALUES ("{0}", "{1}", 0, 0)'.format(callback_query.from_user.id, callback_query.from_user.first_name))
+    cursor.execute('INSERT INTO users_goods (id, bears, paper, hoodie, caps) VALUES ("{0}", 0, 0, 0, 0)'.format(callback_query.from_user.id))
+    connection.commit()
+
     await bot.answer_callback_query(callback_query.id)
-    await bot.send_message(callback_query.from_user.id, 'Введите свой номер телефона (начинается на 7 или 8, без остальных знаков, только цифры)')
+    await bot.send_message(callback_query.from_user.id, 'Спасибо за регистрацию! Вы делаете мир чище!', reply_markup=menu_btns)
 
 ######
 
@@ -152,33 +158,19 @@ async def process_callback_menu(callback_query: types.CallbackQuery):
 
     await bot.answer_callback_query(callback_query.id)
 
-    if good == 'Bear':
-        res = requests.get(f'http://127.0.0.1:5000/api?target=buy&good={good.lower()}&id={callback_query.from_user.id}&cost={goods[good]}')
-        if res.text == 'ok':
-            await bot.send_message(callback_query.from_user.id, 'Вы успешно купили медвежонка, спасибо ❤️', reply_markup=menu_btns)
-        else:
-            await bot.send_message(callback_query.from_user.id, 'У вас недостаточно средств 😥', reply_markup=menu_btns)
+    goodCounter = cursor.execute('SELECT {1} FROM users_goods WHERE id="{0}"'.format(callback_query.from_user.id, good.lower())).fetchall()[0][0]
+    connection.commit()
+    coins = cursor.execute('SELECT coins FROM users WHERE id="{0}"'.format(callback_query.from_user.id)).fetchall()[0][0]
+    connection.commit()
 
-    elif good == 'Paper':
-        res = requests.get(f'http://127.0.0.1:5000/api?target=buy&good={good.lower()}&id={callback_query.from_user.id}&cost={goods[good]}')
-        if res.text == 'ok':
-            await bot.send_message(callback_query.from_user.id, 'Вы успешно купили бумагу, спасибо ❤️', reply_markup=menu_btns)
-        else:
-            await bot.send_message(callback_query.from_user.id, 'У вас недостаточно средств 😥', reply_markup=menu_btns)
+    if int(coins) >= int(goods[good]):
+        cursor.execute('UPDATE users_goods SET {0} = {1} WHERE id="{2}"'.format(good.lower(), int(goodCounter) + 1, callback_query.from_user.id))
+        cursor.execute('UPDATE users SET coins = {1} WHERE id="{0}"'.format(callback_query.from_user.id, int(coins) - int(goods[good])))
+        connection.commit()
+        await bot.send_message(callback_query.from_user.id, 'Вы успешно купили товар, спасибо ❤️', reply_markup=menu_btns)
+    else:
+        await bot.send_message(callback_query.from_user.id, 'У вас недостаточно средств 😥', reply_markup=menu_btns)
 
-    elif good == 'Hoodie':
-        res = requests.get(f'http://127.0.0.1:5000/api?target=buy&good={good.lower()}&id={callback_query.from_user.id}&cost={goods[good]}')
-        if res.text == 'ok':
-            await bot.send_message(callback_query.from_user.id, 'Вы успешно купили худи, спасибо ❤️', reply_markup=menu_btns)
-        else:
-            await bot.send_message(callback_query.from_user.id, 'У вас недостаточно средств 😥', reply_markup=menu_btns)
-
-    elif good == 'Cap':
-        res = requests.get(f'http://127.0.0.1:5000/api?target=buy&good={good.lower()}&id={callback_query.from_user.id}&cost={goods[good]}')
-        if res.text == 'ok':
-            await bot.send_message(callback_query.from_user.id, 'Вы успешно купили кепку, спасибо ❤️', reply_markup=menu_btns)
-        else:
-            await bot.send_message(callback_query.from_user.id, 'У вас недостаточно средств 😥', reply_markup=menu_btns)
 
 @dp.callback_query_handler(lambda c: c.data == 'collect')
 async def process_callback_menu(callback_query: types.CallbackQuery):
